@@ -3,7 +3,7 @@
 // Note that this is v2.0 of lumberjack, and should be imported using gopkg.in
 // thusly:
 //
-//   import "gopkg.in/natefinch/lumberjack.v2"
+//	import "gopkg.in/natefinch/lumberjack.v2"
 //
 // The package name remains simply lumberjack, and the code resides at
 // https://github.com/natefinch/lumberjack under the v2.0 branch.
@@ -66,7 +66,7 @@ var _ io.WriteCloser = (*Logger)(nil)
 // `/var/log/foo/server.log`, a backup created at 6:30pm on Nov 11 2016 would
 // use the filename `/var/log/foo/server-2016-11-04T18-30-00.000.log`
 //
-// Cleaning Up Old Log Files
+// # Cleaning Up Old Log Files
 //
 // Whenever a new logfile gets created, old log files may be deleted.  The most
 // recent files according to the encoded timestamp will be retained, up to a
@@ -111,8 +111,7 @@ type Logger struct {
 	file *os.File
 	mu   sync.Mutex
 
-	millCh    chan bool
-	startMill sync.Once
+	millCh chan struct{}
 }
 
 var (
@@ -175,6 +174,10 @@ func (l *Logger) close() error {
 	}
 	err := l.file.Close()
 	l.file = nil
+	if l.millCh != nil {
+		close(l.millCh)
+		l.millCh = nil
+	}
 	return err
 }
 
@@ -375,8 +378,8 @@ func (l *Logger) millRunOnce() error {
 
 // millRun runs in a goroutine to manage post-rotation compression and removal
 // of old log files.
-func (l *Logger) millRun() {
-	for range l.millCh {
+func (l *Logger) millRun(ch <-chan struct{}) {
+	for range ch {
 		// what am I going to do, log this?
 		_ = l.millRunOnce()
 	}
@@ -385,12 +388,13 @@ func (l *Logger) millRun() {
 // mill performs post-rotation compression and removal of stale log files,
 // starting the mill goroutine if necessary.
 func (l *Logger) mill() {
-	l.startMill.Do(func() {
-		l.millCh = make(chan bool, 1)
-		go l.millRun()
-	})
+	// It is safe to check the millCh here as we are inside the mutex lock.
+	if l.millCh == nil {
+		l.millCh = make(chan struct{}, 1)
+		go l.millRun(l.millCh)
+	}
 	select {
-	case l.millCh <- true:
+	case l.millCh <- struct{}{}:
 	default:
 	}
 }
