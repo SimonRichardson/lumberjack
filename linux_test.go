@@ -98,13 +98,12 @@ func TestCompressMaintainMode(t *testing.T) {
 	isNil(err, t)
 	f.Close()
 
-	notify := make(chan struct{})
 	l := &Logger{
 		Compress:         true,
 		Filename:         filename,
 		MaxBackups:       1,
 		MaxSize:          100, // megabytes
-		notifyCompressed: notify,
+		notifyCompressed: make(chan struct{}),
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -117,7 +116,7 @@ func TestCompressMaintainMode(t *testing.T) {
 	err = l.Rotate()
 	isNil(err, t)
 
-	waitForNotify(notify, t)
+	waitForNotify(l.notifyCompressed, t)
 
 	// a compressed version of the log file should now exist with the correct
 	// mode.
@@ -148,13 +147,12 @@ func TestCompressMaintainOwner(t *testing.T) {
 	isNil(err, t)
 	f.Close()
 
-	notify := make(chan struct{})
 	l := &Logger{
 		Compress:         true,
 		Filename:         filename,
 		MaxBackups:       1,
 		MaxSize:          100, // megabytes
-		notifyCompressed: notify,
+		notifyCompressed: make(chan struct{}),
 	}
 	defer l.Close()
 	b := []byte("boo!")
@@ -167,7 +165,7 @@ func TestCompressMaintainOwner(t *testing.T) {
 	err = l.Rotate()
 	isNil(err, t)
 
-	waitForNotify(notify, t)
+	waitForNotify(l.notifyCompressed, t)
 
 	// a compressed version of the log file should now exist with the correct
 	// owner.

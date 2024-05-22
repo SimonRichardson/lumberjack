@@ -773,11 +773,12 @@ func exists(path string, t testing.TB) {
 }
 
 func waitForNotify(notify <-chan struct{}, t testing.TB) {
+	t.Helper()
+
 	select {
 	case <-notify:
 		// All good.
 	case <-time.After(2 * time.Second):
-		fmt.Println("logger notify not signalled")
-		t.FailNow()
+		t.Fatal("logger notify not signalled")
 	}
 }

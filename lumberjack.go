@@ -175,16 +175,20 @@ func (l *Logger) Write(p []byte) (n int, err error) {
 func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if err := l.close(); err != nil {
-		return err
-	}
+
+	// Always close the mill channel, even if the close fails. This way we
+	// guarantee that the mill goroutine will exit.
+	err := l.close()
+
 	if l.millCh != nil {
 		close(l.millCh)
 		l.wg.Wait()
 		l.millCh = nil
 		l.wg = nil
 	}
-	return nil
+
+	// Return the result of the file close.
+	return err
 }
 
 // close closes the file if it is open.
@@ -404,8 +408,8 @@ func (l *Logger) millRunOnce() error {
 
 // millRun runs in a goroutine to manage post-rotation compression and removal
 // of old log files.
-func (l *Logger) millRun(ch <-chan struct{}) {
-	for range ch {
+func (l *Logger) millRun() {
+	for range l.millCh {
 		// what am I going to do, log this?
 		_ = l.millRunOnce()
 	}
@@ -420,7 +424,7 @@ func (l *Logger) mill() {
 		l.wg = &sync.WaitGroup{}
 		l.wg.Add(1)
 		go func() {
-			l.millRun(l.millCh)
+			l.millRun()
 			l.wg.Done()
 		}()
 	}
